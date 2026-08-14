@@ -1,0 +1,4 @@
+interface:
+  display_name: "Initialize ZW SDD"
+  short_description: "按框架安装或审计 OpenSpec SDD 项目资产"
+  default_prompt: "Use $zw-sdd-init to initialize the OpenSpec SDD assets for this project."

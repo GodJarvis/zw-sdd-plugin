@@ -52,7 +52,7 @@ ZW SDD Plugin 把 Hyperf 与 Phalcon 两套配置模板中的可复用能力收�
 在 Claude Code 中执行：
 
 ```text
-/plugin marketplace add http://git.wozhangwan.com/claude-code/zw-sdd-plugin.git
+/plugin marketplace add https://github.com/GodJarvis/zw-sdd-plugin.git
 /plugin install zw-sdd-plugin@zw-sdd-marketplace
 /reload-plugins
 ```
@@ -60,7 +60,7 @@ ZW SDD Plugin 把 Hyperf 与 Phalcon 两套配置模板中的可复用能力收�
 ### Codex
 
 ```bash
-codex plugin marketplace add http://git.wozhangwan.com/claude-code/zw-sdd-plugin.git
+codex plugin marketplace add https://github.com/GodJarvis/zw-sdd-plugin.git
 codex plugin add zw-sdd-plugin@zw-sdd-marketplace
 codex plugin list
 ```
@@ -70,7 +70,7 @@ codex plugin list
 在 Cursor 中打开 Plugins & Marketplace，使用 `/add-plugin` 添加仓库：
 
 ```text
-http://git.wozhangwan.com/claude-code/zw-sdd-plugin.git
+https://github.com/GodJarvis/zw-sdd-plugin.git
 ```
 
 私有仓库需要当前 Git 环境已经具备访问凭据。
@@ -113,7 +113,7 @@ python3 -m py_compile scripts/audit_plugin.py skills/zw-sdd-init/scripts/install
 claude plugin validate . --strict
 ```
 
-发版时必须同步更新三份 `plugin.json`、`CHANGELOG.md`，然后运行审计，创建 `vX.Y.Z` tag 并推送。
+发版时必须同步更新三份 `plugin.json`、`CHANGELOG.md`，然后运行审计，创建并推送 `vX.Y.Z` tag；GitHub Actions 会依据对应 Changelog 条目自动创建 Release。
 
 完整发布、安装、更新与市场维护手册见管理工作区的 `doc/zw-sdd-plugin-marketplace-guide.md`。
 

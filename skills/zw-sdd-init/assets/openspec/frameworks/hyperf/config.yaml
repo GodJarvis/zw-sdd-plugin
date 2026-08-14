@@ -1,0 +1,82 @@
+schema: zw-workflow
+
+context: |
+  语言：简体中文。所有产出物正文以简体中文为主。
+  接口文档通过已配置的 YApi 集成同步，前端基于 YApi 并行开发。
+
+rules:
+  proposal:
+    - "proposal.md 必须包含 frontmatter（version 字段）。如果变更目录下存在 prd.md 且含 frontmatter，直接继承其 version 值；否则 version 必须填写标准 SemVer（如 v2.1.0）或'项目维护'，禁止使用缺少修订号的版本及 TBD/TODO 等占位值"
+    - "新格式 change 目录名必须为 <类型>-<版本标识>-<主题>：frontmatter 的 v2.1.0 对应目录 v2-1-0，'项目维护'对应 maintenance；生成 proposal 前必须双向核对目录版本标识与 prd.md/proposal.md version，一处不一致即停止。存量无版本标识目录只兼容续跑，不自动重命名"
+    - depends_on 中列出的前置变更，在 apply 前必须确认已 archived 或已合并
+    - 单个变更涉及超过 5 个文件或 3 张表时，须在 proposal 中论证为何不拆分
+    - 超过 10 个文件的变更必须拆分为多个子变更
+    - "如果变更目录下存在 prd.md，proposal 必须基于 prd.md 内容生成。proposal 的变更内容章节只做变更范围概述，禁止展开技术实现细节——技术架构完整性由 design.md 独立保证"
+    - "生成 proposal 前，确认所有探索阶段的决策点均已标注 ✅ [已确认]，不允许存在 ⏳ [待确认] 项"
+    # AI 自检（需执行具体动作验证）
+    - 「自检」ls openspec/changes/ 确认不与进行中的其他变更冲突
+    - 「自检」确认 depends_on 中的前置变更已归档或已合并
+
+  specs:
+    - 每个场景必须覆盖正常流和至少一个异常流
+    - 接口定义须包含：请求参数、响应字段、错误码
+    - 新增错误码前须查阅 App\Enum\ErrorCode 确认不重复
+    - 所有接口响应必须遵循统一信封格式，定义在 App\Trait\HttpServerResponseFormatTrait
+    - "分页接口必须使用标准嵌套分页结构：data 内为 {data, page_info: {page, page_size, total}}，定义在 App\\Entity\\ListEntity"
+    - 新 spec 依赖已有 capability 时，须用 [[capability-name]] 语法引用
+    - 被引用的 spec 发生破坏性变更时，须列出所有引用方并评估影响
+    # AI 自检（需执行具体动作验证）
+    - 「自检」读取 App\Enum\ErrorCode 确认新增错误码无冲突
+    - 「自检」如果本次变更包含破坏性修改，grep openspec/specs/ 中的 [[capability-name]] 查找引用方
+
+  design:
+    - 每段变更 DDL 必须配套 Down（回滚）脚本，完整 DDL 按数据库类型写入对应文件：MySQL → db.mysql.sql、StarRocks → db.starrocks.sql、MongoDB → db.mongodb.js
+    - 涉及数据迁移的 Down 脚本须说明数据是否可逆（不可逆须在回滚策略中标注）
+    - 破坏性操作需单独标注，并在 design 中声明执行前置确认要求
+    - 涉及新错误码时，须列出完整的码-含义映射表
+    - "涉及接口实现时，design 必须按分层架构明确标注各层职责：Controller（参数接收+返回）→ Service（业务逻辑）→ Repository（数据访问）→ Model（实体定义）。禁止将业务逻辑描述归属到 Controller 层"
+
+    # ── 自包含性要求 ──
+    - "design.md 必须完全自包含：所有架构决策、分层设计、数据流、模块交互必须在 design.md 内完整描述。禁止使用'参见PRD'、'详见需求文档'、'参见相关逻辑'、'如PRD中所述'、'同上述方案'、'按标准实现'等外部引用替代技术描述"
+    - "即使输入文档（prd.md、proposal.md、用户描述）中已包含技术思路，design.md 仍须独立完整阐述技术方案。读者无需阅读其他文档即可理解完整技术架构"
+    - "每个涉及接口的模块必须写出：Controller 文件路径及方法签名 → Service 类名及关键方法逻辑 → Repository 查询操作。禁止用'按 Controller→Service→Repository 标准分层'等笼统表述替代"
+
+    # ── 前端传参安全 ──
+    - "实现蓝图中，判定标准：如果某个参数值的变化会直接改变用户获得的权益、资源或金额，则该值 MUST 标注服务端权威数据源（Model/Cache），禁止直接使用前端传参作为决策依据。前端传参仅允许作为操作标识（指向对象），不允许作为决策值（决定结果）"
+
+    # AI 自检
+    - 「自检」Down SQL 必须包含可在开发环境执行的验证步骤与预期结果
+
+  tasks:
+    - "按功能模块分组（非按架构层分组），每个模块包含该功能涉及的所有层（完整链路），使审查时能一次看完一个功能的全部代码"
+    - 每个功能模块内部按依赖顺序排列各层：Model/Repository → Service → Controller（或其它涉及的层）
+    - 共享基础设施（建表、配置变更、公共工具类）作为独立模块放最前面
+    - 每个 task 粒度应可在一个会话内完成（约等于一次 commit）
+    - 任务描述必须包含验证标准（`| 验证：xxx`）
+    - 有跨模块依赖的任务用括号标注：`（依赖 X.Y）`
+    # ── 验收契约（TDD 契约层）──
+    - "每个非 TDD-EXEMPT 的 Task 必须包含验收契约段落，格式：MUST/SHALL + 具体断言。验收契约是执行层开展 TDD 的测试蓝图"
+    - "验收契约需覆盖：正常返回值结构、关键参数校验、异常抛出条件"
+    # ── 执行计划 ──
+    - "tasks.md 头部必须包含「执行计划」表格，标注 Phase 分层、并行/串行策略、检查点位置"
+    - "执行计划基于模块间依赖关系推导：无互相依赖的模块标注为同一 Phase 并行执行"
+    # ── TDD 豁免标注 ──
+    - "纯数据库迁移、纯配置变更、纯 Model/DTO 定义、第三方 SDK 透传封装、文档更新的 Task 须标注 [TDD-EXEMPT: reason]"
+    - "未标注 TDD-EXEMPT 的 Task 必须具备可先编写失败测试、再实现至测试通过的验收契约"
+
+  verify:
+    # ── 代码与产物对齐 ──
+    - "逐条核对 specs 中的行为定义，确认代码实现与 specs 描述一致（字段名、类型、必填项、业务规则）"
+    - "如 yapi.md 存在，逐个核对其中的接口定义，确认代码的路由路径、请求参数、返回字段与 YApi 文档完全一致"
+    - "检查 tasks.md 中所有任务是否已实现并勾选，不允许遗漏"
+    - "检查是否存在 specs 范围之外的改动（未定义的接口、未规划的字段、额外的功能），如有须标记并报告"
+
+    # ── 代码质量 ──
+    - "检查边界条件和异常处理是否覆盖（空值、越界、并发、权限不足等 specs 中定义的异常场景）"
+    - "检查分层架构是否遵守：Controller 无业务逻辑、Service 无直接 Model 操作、Repository 无业务判断"
+    - "检查是否存在硬编码（magic number、写死的 URL/IP/密钥等）"
+
+    # ── 测试验收标准 ──
+    - "必须提供测试套件的实际运行结果，且 failures=0、errors=0"
+    - "所有非 TDD-EXEMPT 的 Scenario 必须有对应 @scenario 标注的测试，且 Scenario↔Test 双向反查 diff=0"
+    - "核心业务逻辑必须有单元测试，并按 specs 中的 Given/When/Then 场景验证行为"

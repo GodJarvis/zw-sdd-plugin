@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "zw-sdd-plugin",
+  "displayName": "ZW SDD",
+  "version": "0.1.0",
+  "description": "面向 Hyperf 与 Phalcon 项目的跨宿主 OpenSpec SDD 工作流与工程规范。",
+  "author": {
+    "name": "GodJarvis",
+    "email": "2454280556@qq.com"
+  },
+  "homepage": "https://github.com/GodJarvis/zw-sdd-plugin",
+  "repository": "https://github.com/GodJarvis/zw-sdd-plugin.git",
+  "license": "MIT",
+  "keywords": [
+    "openspec",
+    "sdd",
+    "workflow",
+    "hyperf",
+    "phalcon"
+  ],
+  "skills": "./skills/"
+}

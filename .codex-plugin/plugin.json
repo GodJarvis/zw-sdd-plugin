@@ -1,0 +1,37 @@
+{
+  "name": "zw-sdd-plugin",
+  "version": "0.1.0",
+  "description": "面向 Hyperf 与 Phalcon 项目的跨宿主 OpenSpec SDD 工作流与工程规范。",
+  "author": {
+    "name": "GodJarvis",
+    "email": "2454280556@qq.com"
+  },
+  "homepage": "https://github.com/GodJarvis/zw-sdd-plugin",
+  "repository": "https://github.com/GodJarvis/zw-sdd-plugin.git",
+  "license": "MIT",
+  "keywords": [
+    "openspec",
+    "sdd",
+    "workflow",
+    "hyperf",
+    "phalcon"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "ZW SDD",
+    "shortDescription": "Hyperf 与 Phalcon 的 OpenSpec SDD 工作流",
+    "longDescription": "以单份 canonical skills 为 Claude Code、Codex 与 Cursor 提供 OpenSpec SDD 编排、框架工程规范、QA、评审、验证和上线文档能力。",
+    "developerName": "GodJarvis",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "使用 ZW SDD 初始化或审计当前项目的 OpenSpec 工作流资产。",
+      "使用 ZW SDD 按当前框架执行一个 OpenSpec change。",
+      "使用 ZW SDD 检查当前 change 的规范、实现与验证证据。"
+    ]
+  }
+}

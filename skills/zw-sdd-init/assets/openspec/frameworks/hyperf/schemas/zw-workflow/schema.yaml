@@ -1,0 +1,497 @@
+name: zw-workflow
+version: 1
+description: 项目自定义工作流 - proposal → specs → design → tasks
+artifacts:
+  - id: proposal
+    generates: proposal.md
+    description: 变更提案文档，说明为什么做
+    template: proposal.md
+    instruction: |
+      创建提案文档，说明为什么需要做这个变更。
+
+      **PRD 输入**：如果 change 目录中已存在 prd.md，MUST 先读取其内容作为提案的需求输入。
+      prd.md 是产品需求文档，在整个产物创建过程中 MUST 保留，禁止删除或覆盖。
+
+      章节：
+      - **背景（Why）**：1-2句话说明问题或机会，解决什么问题？为什么现在做？
+      - **变更内容（What Changes）**：列表说明变更，具体说明新功能、修改或删除的内容。破坏性变更请标注 **BREAKING**。
+      - **能力（Capabilities）**：识别将创建或修改的规范：
+        - **新增能力（New Capabilities）**：列出引入的能力，每个创建 `specs/<name>/spec.md`，使用 kebab-case 命名（例如 user-auth、data-export）
+        - **修改能力（Modified Capabilities）**：列出现有能力的需求正在变更（不仅仅是实现细节），每个需要 delta 规范文件。使用 openspec/specs/ 中的现有规范名称。如果没有需求变更，请留空。
+      - **影响面（Impact）**：受影响的代码、API、依赖、系统。涉及第三方服务时须说明降级方案。
+
+      重要：能力（Capabilities）章节是关键，它在提案和规范阶段之间创建契约。
+      填写前请研究现有规范，列出的每个能力都需要对应的规范文件。
+
+      保持简洁（1-2页），关注"为什么"而不是"怎么做"，实现细节属于 design.md。
+
+      这是基础，specs、design 和 tasks 都基于此。
+    requires: []
+
+  - id: specs
+    generates: "specs/**/*.md"
+    description: 详细的需求规范文档
+    template: spec.md
+    instruction: |
+      创建规范文档，定义系统应该做什么。
+
+      为提案的能力章节中列出的每个能力创建一个规范文件：
+      - 新能力：使用提案中的确切 kebab-case 名称（specs/<capability>/spec.md）
+      - 修改能力：在创建 specs/<capability>/spec.md 下的 delta 规范时，使用 openspec/specs/<capability>/ 中的现有规范文件夹名称
+
+      Delta 操作（使用 ## 标题）：
+      - **新增需求（ADDED Requirements）**：新能力
+      - **修改需求（MODIFIED Requirements）**：变更行为 - 必须包含完整更新内容
+      - **删除需求（REMOVED Requirements）**：已弃用功能 - 必须包含 **原因**和**迁移方案**
+      - **重命名需求（RENAMED Requirements）**：仅名称变更 - 使用 FROM:/TO: 格式
+
+      重要：只保留本次变更涉及的 delta 操作章节，删除不适用的章节。
+      NFR 章节仅面向用户的核心接口需要，非核心接口省略。
+
+      需求格式：
+      - 每个需求：`### 需求（Requirement）：<名称>` 后跟描述
+      - 使用 SHALL / MUST 表示规范性要求（避免 should / may）
+      - 每个场景：`#### 场景（Scenario）：<名称>` 带 GIVEN/WHEN/THEN 格式
+      - **关键**：场景必须使用 4 个井号（`####`），使用 3 个井号或列表会静默失败
+      - 每个需求必须至少有一个场景
+
+      修改需求工作流：
+      1. 在 openspec/specs/<capability>/spec.md 中找到现有需求
+      2. 复制完整需求块（从 `### 需求：` 到所有场景）
+      3. 粘贴在 `## 修改需求` 下并编辑以反映新行为
+      4. 确保标题文本完全匹配（不区分空格）
+
+      常见陷阱：使用部分内容的 MODIFY 会在归档时丢失细节
+      如果添加新关注点而不改变现有行为，请改用 ADDED
+
+      示例：
+      ```
+      ## 新增需求
+
+      ### 需求：用户可以导出数据
+      系统 SHALL 允许用户以 CSV 格式导出数据
+
+      #### 场景：成功导出
+      - **前提（GIVEN）** 用户已登录且有数据
+      - **当（WHEN）** 用户点击"导出"按钮
+      - **那么（THEN）** 系统下载包含所有用户数据的 CSV 文件
+
+      ## 删除需求
+
+      ### 需求：旧导出功能
+      **原因**：被新导出系统替代
+      **迁移方案**：使用 /api/v2/export 的新导出端点
+      ```
+
+      规范应该是可测试的——每个场景都是一个潜在的测试用例。
+
+      **列表功能筛选项检查（MUST — 涉及列表/搜索接口时执行）**：
+      当 spec 涉及列表查询接口且含有筛选/过滤字段时，MUST 逐一评估每个筛选字段的下拉数据来源：
+      1. 先在 codebase 中查找 `SearchConditionController` / `SearchController` 类（项目约定：所有筛选下拉框统一走该 Controller 的 index 方法，通过 switch($k) 按 key 路由返回选项数据）
+      2. 如果找到该类：检查现有 switch case 是否已覆盖本次新增的筛选字段，未覆盖的 MUST 在 spec 中声明需要新增对应 case
+      3. 如果未找到该类：在需求梳理阶段向用户确认筛选项数据源方案（新建 SearchController / 独立 options 接口 / 前端硬编码）
+      4. 固定枚举字段（如 status 0/1/2）：确认对应常量类是否已定义，未定义则 spec 中声明需新增
+
+      遗漏此检查会导致前端筛选框缺少下拉数据源。
+    requires:
+      - proposal
+
+  - id: design
+    generates: design.md
+    description: 技术设计文档 + 实现蓝图，说明如何实现
+    template: design.md
+    instruction: |
+      创建设计文档，包含架构决策和签名级实现蓝图。目标读者是"对 codebase 零上下文的工程师"——看完本文档即可理解每个组件该怎么写。
+
+      **前置读取（MUST — 动笔前执行）**：
+      读取 `openspec/GLOSSARY.md` 领域术语表，确保设计中使用的术语含义与项目定义一致。
+
+      **CRITICAL — 本产物可能包含多个文件**：
+      当设计涉及数据库结构变更（建表、ALTER、索引等）时，MUST 同时生成 design.md 和对应的 DDL 伴生文件（db.mysql.sql / db.starrocks.sql / db.mongodb.js）。
+      DDL 伴生文件与 design.md 位于同一目录，是 design 产物不可分割的组成部分。
+      仅写入 design.md 而不生成 DDL 伴生文件视为产物不完整。
+
+      何时包含 design.md（仅在以下情况创建）：
+      - 跨领域变更（多个服务/模块）或新架构模式
+      - 新外部依赖或重大数据模型变更
+      - 安全性、性能或迁移复杂性
+      - 需要在编码前做出技术决策的模糊情况
+
+      ## 文档布局（按模块自包含 — MUST 遵循）
+
+      design.md 按以下结构组织，每个模块自包含架构决策和实现蓝图：
+
+      ```
+      概述（Overview）
+        └─ 目标 / 架构方向 / 非目标
+      全局决策（Global Decisions）
+        └─ 影响多个模块的跨领域决策表
+      风险与权衡（Risks / Trade-offs）
+        └─ 全局性风险 → 缓解措施
+      ---
+      模块 N: [名称]
+        ├─ 架构说明（设计思路、约束、依赖、条件性段落）
+        ├─ 文件结构（操作/路径/职责 表格）
+        └─ 实现蓝图（每个组件的签名 + 实现要点）
+      ---
+      数据库变更（条件性）
+      迁移计划（条件性）
+      ```
+
+      **按模块组织的核心原则**：
+      - 每个模块对应 tasks.md 中的一个功能模块（`## N. 模块名`）
+      - 审核时一次看完一个模块的「为什么这样设计」+「具体怎么实现」
+      - 只影响单模块的决策放在该模块的架构说明内，不放全局决策
+      - 条件性段落（协程安全/缓存/异步任务/可观测性）归属到涉及的模块内；影响多模块时放全局
+
+      ## 条件性段落必填要素（模块涉及时 MUST 在架构说明 + 实现蓝图中覆盖）
+
+      以下为各条件性段落的必填要素清单。内容分布在模块的两个区域：
+      - **架构说明**：设计决策、选型原因、策略方案
+      - **实现蓝图**：Consumer/Task 类签名、配置属性值、启动命令
+
+      **异步任务方案**（涉及队列消费/定时任务/常驻任务时）：
+      - 任务分类：常驻任务 / 定时任务 / 一次性任务，各自的用途和触发方式
+      - 队列选型及原因：为什么选 Kafka / AMQP / Redis（而非其他）
+      - 队列属性值：Kafka 的 topic、group_id；AMQP 的 exchange、routing_key、queue；Redis 的 list_key/zset_key
+      - 消费模式：顺序消费 / 并发消费 / 批量消费
+      - 并发度：worker 数、协程并发数
+      - 幂等性保证：去重方案（唯一键/幂等表/业务状态机）
+      - 重试策略：重试次数、间隔、死信队列/人工介入条件
+      - 失败处理：超过重试后的降级方案
+
+      **协程安全分析**（涉及共享状态变更时）：
+      - 哪些状态可能被并发协程同时访问
+      - 竞态风险点及隔离策略（Context / 连接池 / 锁）
+      - 禁止使用的模式（全局变量、静态状态）
+
+      **缓存方案**（涉及缓存时）：
+      - 缓存 Key 命名规则及示例
+      - 过期策略：TTL 值 + 随机偏移（防雪崩）
+      - 失效触发清单（MUST 精确到方法级）：列出所有会导致该缓存失效的写操作，格式 `XxxService::method() → del key:pattern`；跨模块的写操作同样列出（即使写操作定义在其他模块）
+      - 缓存一致性方案（先删后写 / 延迟双删 / 版本号）
+      - 缓存穿透/击穿防护
+
+      **可观测性方案**（新增核心业务流程时）：
+      - 关键日志埋点位置及内容
+      - 监控指标（如有）
+      - 告警条件（如有）
+
+      ## 实现蓝图格式（MUST — 非 TDD-EXEMPT 组件必须有蓝图）
+
+      每个模块的「实现蓝图」章节按组件逐个列出，粒度分三级：
+
+      **签名级（核心逻辑 — 默认）**：
+      ```markdown
+      #### ComponentName
+
+      **文件**: `exact/path/to/File.php`
+      **参照**: `exact/path/to/ExistingFile.php` 的 [具体模式描述]
+      **Skill**: `hyperf-controller`（apply 时 MUST invoke 此 skill）
+
+      ```php
+      class ComponentName
+      {
+          // 方法用途注释
+          public function methodName(ParamType $param): ReturnType
+      }
+      ```
+
+      **实现要点**:
+      1. 步骤一（调用顺序、事务边界等）
+      2. 步骤二
+      - 关键约束声明（MUST/NEVER）
+      ```
+
+      签名级包含：
+      - 精确文件路径
+      - 参照的现有代码（让 AI 去读并模仿其模式）
+      - 关联 Skill 名称（apply 时强制 invoke，确保编码规范在上下文中）
+      - 完整的类/方法签名（参数名、类型、返回值）
+      - 有序的实现步骤（锁定调用顺序）
+      - 关键约束（锁策略、事务归属、异常处理方式）
+
+      **模式引用级（简单 CRUD）**：
+      ```markdown
+      #### ComponentName（模式引用级）
+
+      **文件**: `exact/path/to/File.php`
+      **参照**: `exact/path/to/ExistingFile.php::methodName`
+      **Skill**: `hyperf-controller`（apply 时 MUST invoke）
+      **约束**: 一句话关键约束
+      ```
+
+      模式引用级适用于：实现方式只有一种显而易见的写法（标准 CRUD 端点、简单字段映射）。
+
+      **复用声明级（调用或扩展已有组件）**：
+      ```markdown
+      #### ComponentName（复用）
+
+      **文件**: `exact/path/to/ExistingFile.php`
+      **当前能力**: 该组件现在能做什么（列出已有的分支/case/功能）
+      **本次需要**: 本次变更需要它做什么
+      **缺口**: 当前能力与本次需要之间的差异（无缺口 = 直接调用；有缺口 = 需扩展，列出具体改动点）
+      **调用方**: `XxxService::method()` 中如何调用/投递
+      ```
+
+      复用声明级适用于：设计中涉及调用或扩展项目中已有的组件（Task/Consumer/Service/工具类等）。
+      判定：蓝图中提到"复用"、"调用已有"、"通过现有 Xxx 处理"时，MUST 使用此格式，禁止一句话带过。
+
+      **分层混合判定标准**：
+      - 组件的实现方式有多种合理选择（事务边界、锁策略、调用顺序、错误处理策略）→ 签名级
+      - 组件只有一种显而易见的写法（标准 CRUD、字段透传）→ 模式引用级
+      - 调用或扩展项目中已有的组件 → 复用声明级
+      - TDD-EXEMPT 组件（DDL/config/model 定义）→ 不需蓝图，在 tasks.md 验收契约中定义
+
+      ## 数据库 DDL 伴生文件（MUST — 涉及数据库变更时强制执行）
+
+      当变更涉及数据库结构变更时，MUST 在 change 目录下生成对应的 DDL 文件（只生成涉及的数据库类型）：
+
+      **已知数据库（有专属 skill 或模板约束）**：
+
+      | 数据库 | 文件名 | Skill | 说明 |
+      |--------|--------|-------|------|
+      | MySQL | `db.mysql.sql` | `hyperf-database` | 建表、ALTER、数据迁移、回滚 |
+      | StarRocks | `db.starrocks.sql` | `starrocks-ddl` | 建表（含 DISTRIBUTED BY、PROPERTIES 等） |
+      | MongoDB | `db.mongodb.js` | — | 集合创建、索引定义、Validator Schema |
+      | Hologres | `db.hologres.sql` | — | 表结构定义（供大数据团队创建，业务项目定义规格） |
+
+      **兜底规则（未预定义的数据库）**：
+      - 命名：`db.{engine_name}.sql`（SQL 类数据库）或 `db.{engine_name}.js`（JS 类数据库）
+      - 结构：沿用 UP/DOWN 分区 + 注释头模板
+      - 规范：无专属 skill 时，使用该数据库官方最佳实践
+      - 首次遇到时 MUST 向用户确认引擎标识名（用于文件命名）和基本建表约束
+
+      design.md 的"数据库变更"章节只写概述（涉及哪些库/表、什么变更、原因），
+      完整可执行的 DDL 全部写入对应文件。
+
+      ### db.mysql.sql 结构
+
+      ```sql
+      -- ============================================================
+      -- Change: <change-name>
+      -- Description: <一句话说明>
+      -- ============================================================
+
+      -- [UP] 新增表
+      CREATE TABLE ...;
+
+      -- [UP] 修改表
+      ALTER TABLE ...;
+
+      -- [UP] 数据迁移
+      INSERT/UPDATE ...;
+
+      -- ⚠️ [UP] 破坏性操作（需人工确认）
+      DROP/TRUNCATE ...;
+
+      -- ============================================================
+      -- [DOWN] 回滚脚本
+      -- ============================================================
+      DROP TABLE IF EXISTS ...;
+      ALTER TABLE ... DROP COLUMN ...;
+      ```
+
+      ### db.starrocks.sql 结构
+
+      ```sql
+      -- ============================================================
+      -- Change: <change-name>
+      -- Description: <一句话说明>
+      -- ============================================================
+
+      -- [UP] 新增表
+      CREATE TABLE table_name (
+          ...
+      )
+      DISTRIBUTED BY HASH(id) BUCKETS 8
+      PROPERTIES ("replication_num" = "1");
+
+      -- [UP] 修改表
+      ALTER TABLE ...;
+
+      -- ============================================================
+      -- [DOWN] 回滚脚本
+      -- ============================================================
+      DROP TABLE IF EXISTS ...;
+      ```
+
+      ### db.mongodb.js 结构
+
+      ```javascript
+      // ============================================================
+      // Change: <change-name>
+      // Description: <一句话说明>
+      // ============================================================
+
+      // [文档] 集合字段结构（仅供参考，不做运行时校验）
+      // collection: collection_name
+      // {
+      //   _id: ObjectId,
+      //   field_a: int,         // 字段说明
+      //   field_b: string,      // 字段说明
+      //   create_time: Date     // 创建时间
+      // }
+
+      // [UP] 创建索引
+      db.collection_name.createIndex(
+        { field_a: 1 },
+        { name: "idx_field_a", background: true }
+      );
+
+      // ============================================================
+      // [DOWN] 回滚脚本
+      // ============================================================
+      db.collection_name.dropIndex("idx_field_a");
+      ```
+
+      MongoDB DDL 说明：
+      - 不使用 `createCollection` + `$jsonSchema`（MongoDB schema-less 设计，强加 validator 会导致新增字段时插入失败）
+      - 字段结构以注释形式记录（供开发参考，不做运行时校验）
+      - 重点关注索引定义（索引不会自动创建，必须手动管理）
+      - 索引加 `background: true` 避免阻塞线上读写
+
+      ### db.hologres.sql 结构
+
+      Hologres 表由大数据团队负责创建和数据同步，业务项目负责定义表结构规格。
+      典型场景：对 MySQL 表做 binlog 同步（Kafka 推送），业务项目查询或通过 Kafka 推送更新。
+
+      ```sql
+      -- ============================================================
+      -- Change: <change-name>
+      -- Description: <一句话说明>
+      -- 用途：<业务查询场景说明>
+      -- 数据来源：<binlog 同步 / Kafka 推送 / 手动导入>
+      -- ============================================================
+
+      -- [定义] 表结构
+      BEGIN;
+      CREATE TABLE IF NOT EXISTS public.table_name (
+          id bigint NOT NULL,
+          corp_id bigint NOT NULL,
+          name text,
+          status int,
+          create_time timestamptz,
+          update_time timestamptz,
+          PRIMARY KEY (id)
+      );
+      CALL set_table_property('public.table_name', 'orientation', 'column');
+      CALL set_table_property('public.table_name', 'distribution_key', 'id');
+      CALL set_table_property('public.table_name', 'clustering_key', 'id');
+      CALL set_table_property('public.table_name', 'time_to_live_in_seconds', '31536000');
+      COMMENT ON TABLE public.table_name IS '表注释';
+      COMMENT ON COLUMN public.table_name.id IS '主键ID';
+      COMMENT ON COLUMN public.table_name.corp_id IS '企业ID';
+      COMMIT;
+
+      -- [定义] 索引（按查询场景）
+      -- 按企业筛选的列表查询
+      CREATE INDEX IF NOT EXISTS idx_table_name_corp_id ON public.table_name (corp_id);
+      ```
+
+      Hologres DDL 要求：
+      - 表结构用 `BEGIN; ... COMMIT;` 包裹（DDL 事务）
+      - 属性通过 `CALL set_table_property()` 设置（orientation、distribution_key、clustering_key 等）
+      - 字段注释通过 `COMMENT ON COLUMN` 单独声明
+      - 无 DOWN 回滚段（表由大数据团队管理，业务项目不负责删除）
+      - 文件头 MUST 包含用途和数据来源说明
+
+      要求：
+      - UP 和 DOWN 用注释分隔符明确分区（Hologres 除外，无 DOWN 段）
+      - 破坏性操作须用 ⚠️ 标记并注释"需人工确认"
+      - 语句可直接复制执行（MySQL/StarRocks/Hologres 以分号结尾，MongoDB 为合法 JS）
+      - 不涉及数据库变更时不生成任何 db 文件
+      - **伴生文件写入同目录**：DDL 文件与 design.md 位于同一 change 目录下，写完 design.md 后立即写入对应的 db 文件
+
+      ## 完成检查
+
+      design 产物完成前 MUST 确认：
+      1. design.md 按「概述 → 全局决策 → 模块（架构+文件结构+蓝图）→ 数据库/迁移」结构组织
+      2. 每个非 TDD-EXEMPT 组件有对应的实现蓝图（签名级或模式引用级）
+      3. 签名级蓝图包含：精确路径 + 参照代码 + 方法签名 + 实现步骤 + 关键约束
+      4. 若设计涉及数据库变更 → 对应 db.*.sql / db.*.js 文件已写入同目录
+      5. design.md 的"数据库变更"章节仅包含概述，完整 DDL 在伴生文件中
+      6. 模块划分与 tasks.md 的功能模块一一对应
+
+      参考提案的动机和规范的需求。
+      好的设计文档让人看完一个模块就知道"为什么这样做"和"具体该怎么写"。
+    requires:
+      - proposal
+      - specs
+
+  - id: tasks
+    generates: tasks.md
+    description: 实施任务清单，可追踪
+    template: tasks.md
+    instruction: |
+      创建分解实施工作的任务列表。
+
+      **重要：严格按照以下模板操作**，apply 阶段解析复选框格式来跟踪进度，不使用 `- [ ]` 的任务不会被跟踪。
+
+      **核心原则：按功能模块分组，每个模块包含该功能涉及的所有层**，使代码审查时能一次看完整个功能的完整链路。
+
+      **禁止按技术分层拆分模块**（违反即重做）：
+      - ❌ 错误示例：「审核任务管理 - Service 层」「审核任务管理 - Controller 层」分成两个模块
+      - ✅ 正确示例：「审核任务管理」作为一个模块，内含 Model → Service → Controller 全部子任务
+      - 判定标准：如果两个模块标题仅靠「技术层」区分同一业务功能，则必须合并为一个模块
+
+      指南：
+      - 按功能模块划分任务组（## 编号标题 = 一个完整业务功能，包含该功能从数据层到接口层的所有任务）
+      - 每个功能模块内按依赖顺序排列各层任务：Model/Repository → Service → Controller（或其它层）
+      - 共享基础设施（建表、配置、公共工具类）作为独立模块放最前面
+      - 一个功能模块 = 一次代码审查的最小单元，审查者能在一个模块内看到完整的数据流转链路
+      - 每个任务必须是复选框：`- [ ] X.Y 任务描述`
+      - 每个任务下方必须有 `**验收契约：**` 块，包含 MUST/SHALL 断言（TDD-EXEMPT 任务也需要，用于定义完成标准）
+      - 任务应该小到可以在一个会话中完成（约等于一次 commit）
+      - 有跨模块依赖的任务用括号标注：`（依赖 X.Y）`
+      - commit message 格式：`feat(<module>): 描述 [change: <name>, task: N]`
+
+      示例：
+      ```
+      ## 1. 基础设施
+
+      - [ ] 1.1 创建 exports 表 [TDD-EXEMPT: migration]
+
+      **验收契约：**
+      - MUST 迁移可执行且可回滚
+      - MUST 包含 id, user_id, format, status, created_at 字段
+
+      - [ ] 1.2 添加 users.export_count 字段 [TDD-EXEMPT: migration]
+
+      **验收契约：**
+      - MUST ALTER TABLE 成功且不影响现有数据
+
+      ## 2. 数据导出功能
+
+      - [ ] 2.1 ExportRepository：新增 saveExportRecord 方法（依赖 1.1）
+
+      **验收契约：**
+      - MUST 接收 ExportRecord 实体并持久化到 exports 表
+      - MUST 返回包含自增 id 的完整记录
+
+      - [ ] 2.2 ExportService：实现导出逻辑 + CSV 格式化
+
+      **验收契约：**
+      - MUST 调用 ExportRepository::saveExportRecord 创建导出记录
+      - MUST 以 CSV 格式输出，首行为表头
+      - SHALL 在数据为空时返回仅含表头的 CSV
+
+      - [ ] 2.3 ExportController：添加 /api/export 端点
+
+      **验收契约：**
+      - MUST 返回信封格式 {status_code: 1, msg: "success", data: {export_id, download_url}}
+      - MUST 在未登录时返回 {status_code: 401, msg: "未授权"}
+      ```
+
+      参考规范了解需要构建什么，参考设计了解如何构建它。
+      每个任务应该是可验证的——你知道什么时候完成。
+    requires:
+      - specs
+      - design
+
+apply:
+  requires: [tasks]
+  tracks: tasks.md
+  instruction: |
+    阅读上下文文件，处理待处理任务，完成时标记完成。
+    如果遇到阻碍或需要澄清，请暂停。

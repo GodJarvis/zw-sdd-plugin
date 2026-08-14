@@ -1,0 +1,4 @@
+interface:
+  display_name: "Using ZW SDD"
+  short_description: "统一选择并执行 Hyperf 与 Phalcon 的 OpenSpec SDD 工作流"
+  default_prompt: "Use $using-zw-sdd to select and run the correct SDD workflow for this project."

@@ -1,0 +1,20 @@
+{
+  "name": "zw-sdd-marketplace",
+  "interface": {
+    "displayName": "ZW SDD Marketplace"
+  },
+  "plugins": [
+    {
+      "name": "zw-sdd-plugin",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+name: hotfix-workflow
+version: 1
+description: 紧急修复工作流 - 仅 proposal → specs，适用于代码已提交的 hotfix 场景
+artifacts:
+  - id: proposal
+    generates: proposal.md
+    description: Hotfix 提案文档，记录故障和修复方案
+    template: proposal.md
+    instruction: |
+      创建 hotfix 提案文档，事后记录故障和修复过程。
+
+      此流程用于代码已提交的紧急修复场景，重点是记录而非规划。
+
+      章节：
+      - **故障描述（Incident）**：现象、影响范围、发现时间
+      - **根因分析（Root Cause）**：为什么出了问题
+      - **修复方案（Fix）**：已经做了什么修复（已提交的代码变更）
+      - **回滚策略（Rollback）**：如果修复引入新问题，如何回退
+      - **事后复盘（Postmortem）**：根因、时间线、改进措施（归档前补齐）
+      - **能力（Capabilities）**：识别修复涉及的规范变更：
+        - **新增能力（New Capabilities）**：修复引入的新能力
+        - **修改能力（Modified Capabilities）**：修复改变了哪些现有能力的行为
+
+      frontmatter 必须填写 bypass_reason 和 version 字段。
+    requires: []
+
+  - id: specs
+    generates: "specs/**/*.md"
+    description: 从已有修复代码中反向提取的需求规范
+    template: spec.md
+    instruction: |
+      基于已提交的修复代码，反向提取需求规范。
+
+      这一步的目的是确保主规范库（openspec/specs/）能同步更新，
+      让后续开发者了解系统当前的行为定义。
+
+      工作方式：
+      1. 阅读已提交的修复代码，理解行为变更
+      2. 确定这些变更属于哪个 capability（新增或修改）
+      3. 用标准 spec 格式记录
+
+      Delta 操作（使用 ## 标题）：
+      - **新增需求（ADDED Requirements）**：修复引入的新行为
+      - **修改需求（MODIFIED Requirements）**：修复改变的现有行为 - 必须包含完整更新内容
+
+      重要：只保留本次修复涉及的 delta 操作章节，删除不适用的章节。
+
+      需求格式：
+      - 每个需求：`### 需求（Requirement）：<名称>` 后跟描述
+      - 使用 SHALL / MUST 表示规范性要求
+      - 每个场景：`#### 场景（Scenario）：<名称>` 带 GIVEN/WHEN/THEN 格式
+    requires:
+      - proposal
+
+apply:
+  requires: [specs]
+  instruction: |
+    hotfix 流程无需 apply 阶段（代码已提交）。
+    此阶段仅用于确认产物完整性，准备归档。
